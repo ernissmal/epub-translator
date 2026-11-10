@@ -24,6 +24,25 @@ If you'd like to try EPUB Translator without setting it up locally, you can use 
 
 [![EPUB Translator Online Version](docs/images/online-en.png)](https://pdfcraft.ai/epub-translator)
 
+## Books Translator web app
+
+This fork includes a small FastAPI web service in `web/` that wraps the Python translation library. It keeps the provider key on the server, accepts EPUB uploads, reports progress, and returns the translated EPUB when the job is complete.
+
+Run it locally:
+
+```bash
+export OPENAI_API_KEY="your-api-key"
+uvicorn web.app:app --host 127.0.0.1 --port 8080
+```
+
+The service accepts any OpenAI-compatible provider. Set `OPENAI_BASE_URL`, `EPUB_TRANSLATOR_MODEL`, and optionally `EPUB_TRANSLATOR_FILL_MODEL` for a different provider or model.
+
+### Cloudflare deployment shape
+
+The translation engine is Python and runs as a container; Cloudflare fronts it with DNS, TLS, and optionally a Tunnel. Build the included image, run it on a container host, and point a Cloudflare Tunnel at `http://127.0.0.1:8080`. The intended public hostname is `books.smalikis.id.lv`.
+
+Before making the service public, configure an upload limit, request protection/rate limiting, and a retention policy for uploaded books. The in-memory job registry is intended for a single-instance first launch; a durable queue and object storage should be added before horizontal scaling.
+
 ## Installation
 
 ```bash

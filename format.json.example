@@ -1,0 +1,8 @@
+{
+  "key": "not-used-by-the-web-app",
+  "url": "https://api.openai.com/v1",
+  "model": "gpt-4o-mini",
+  "token_encoding": "o200k_base",
+  "translation": { "model": "gpt-4o-mini" },
+  "fill": { "model": "gpt-4o-mini" }
+}
