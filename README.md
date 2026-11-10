@@ -28,12 +28,30 @@ If you'd like to try EPUB Translator without setting it up locally, you can use 
 
 This fork includes a small FastAPI web service in `web/` that wraps the Python translation library. It keeps the provider key on the server, accepts EPUB uploads, reports progress, and returns the translated EPUB when the job is complete.
 
-Run it locally:
+### Local setup
+
+Prerequisites: Git, Python 3.11–3.13, and an API key for an OpenAI-compatible provider. Python 3.12 is used by the included Docker image.
 
 ```bash
-export OPENAI_API_KEY="your-api-key"
+git clone https://github.com/ernissmal/epub-translator.git
+cd epub-translator
+python3.12 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -e .
+cp .env.example .env
+```
+
+Edit `.env` and set `OPENAI_API_KEY`. Never commit `.env` or paste the key into the browser. The app reads the key only on the server.
+
+Start the service:
+
+```bash
+set -a; source .env; set +a
 uvicorn web.app:app --host 127.0.0.1 --port 8080
 ```
+
+Open <http://127.0.0.1:8080>. Check <http://127.0.0.1:8080/api/health> for a JSON health response. Use `Ctrl+C` to stop the service.
 
 The service accepts any OpenAI-compatible provider. Set `OPENAI_BASE_URL`, `EPUB_TRANSLATOR_MODEL`, and optionally `EPUB_TRANSLATOR_FILL_MODEL` for a different provider or model.
 
@@ -42,6 +60,60 @@ The service accepts any OpenAI-compatible provider. Set `OPENAI_BASE_URL`, `EPUB
 The translation engine is Python and runs as a container; Cloudflare fronts it with DNS, TLS, and optionally a Tunnel. Build the included image, run it on a container host, and point a Cloudflare Tunnel at `http://127.0.0.1:8080`. The intended public hostname is `books.smalikis.id.lv`.
 
 Before making the service public, configure an upload limit, request protection/rate limiting, and a retention policy for uploaded books. The in-memory job registry is intended for a single-instance first launch; a durable queue and object storage should be added before horizontal scaling.
+
+### Docker setup
+
+Build and run the service on a server or VM with Python-compatible container support:
+
+```bash
+docker build -t books-translator .
+docker run --name books-translator --restart unless-stopped \
+  --env-file .env \
+  -p 127.0.0.1:8080:8080 \
+  -v books-translator-data:/tmp/epub-translator \
+  books-translator
+```
+
+Verify the container before exposing it:
+
+```bash
+curl http://127.0.0.1:8080/api/health
+```
+
+### Cloudflare Tunnel for `books.smalikis.id.lv`
+
+The application needs a running origin server; Cloudflare DNS/Tunnel provides the public hostname and HTTPS but does not run this Python process by itself.
+
+1. Add `smalikis.id.lv` to the Cloudflare account and confirm that its nameservers are active.
+2. Install `cloudflared` on the same server as the Docker container.
+3. In Cloudflare Dashboard, open **Networking → Tunnels**, create a tunnel, and install the connector using the command shown for the server.
+4. Add a published application route with hostname `books.smalikis.id.lv` and service URL `http://127.0.0.1:8080`.
+5. Confirm that the tunnel shows **Healthy**, then open `https://books.smalikis.id.lv`.
+
+For a locally managed tunnel, the equivalent commands are:
+
+```bash
+cloudflared tunnel login
+cloudflared tunnel create books-translator
+cloudflared tunnel route dns books-translator books.smalikis.id.lv
+cloudflared tunnel --config ~/.cloudflared/config.yml run books-translator
+```
+
+Do not put a tunnel token, certificate, or API key in Git. Cloudflare’s current Tunnel setup requires an origin server and an authenticated `cloudflared` connector; see the [Cloudflare Tunnel setup guide](https://developers.cloudflare.com/tunnel/get-started/).
+
+### Production checklist
+
+- Replace the operator contact placeholders in [`web/static/terms.html`](web/static/terms.html).
+- Publish a separate privacy notice before accepting personal data or marketing traffic.
+- Keep the Terms acceptance checkbox enabled; the API rejects jobs without acceptance.
+- Set a conservative `EPUB_TRANSLATOR_MAX_UPLOAD_BYTES` value and configure edge rate limiting or Cloudflare WAF rules.
+- Decide and document how long source and translated files are retained; the current MVP stores jobs on the configured data volume.
+- Back up only what you are legally entitled to retain, and keep provider API keys in a secret manager or protected environment file.
+- Run a real translation with a small test EPUB before public launch and monitor AI provider costs.
+
+### Terms of Service
+
+The public interface links to [`/terms`](http://127.0.0.1:8080/terms). Users must affirm that they have the right to upload a book and accept the Terms before a job is created. The Terms explain that uploaders are responsible for copyright, privacy, legality, and use of the AI output. They are an operational template and must be reviewed and completed for the operator’s actual legal details before launch.
 
 ## Installation
 

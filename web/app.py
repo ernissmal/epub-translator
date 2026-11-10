@@ -110,6 +110,11 @@ async def index() -> str:
     return (STATIC_DIR / "index.html").read_text(encoding="utf-8")
 
 
+@app.get("/terms", response_class=HTMLResponse)
+async def terms() -> str:
+    return (STATIC_DIR / "terms.html").read_text(encoding="utf-8")
+
+
 @app.get("/api/health")
 async def health() -> dict[str, str]:
     return {"status": "ok", "service": "books-translator"}
@@ -121,7 +126,10 @@ async def create_job(
     target_language: str = Form(...),
     mode: str = Form("bilingual"),
     prompt: str = Form(""),
+    terms_accepted: bool = Form(False),
 ) -> dict[str, Any]:
+    if not terms_accepted:
+        raise HTTPException(status_code=400, detail="You must accept the Terms of Service before uploading a book.")
     if not file.filename or not file.filename.lower().endswith(".epub"):
         raise HTTPException(status_code=400, detail="Please upload an EPUB file.")
     if mode not in {"bilingual", "replace"}:
