@@ -13,6 +13,7 @@ from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
 from epub_translator import LLM, SubmitKind, translate
+from web.deepl_translate import translate_epub_with_deepl
 
 ROOT = Path(__file__).resolve().parent
 STATIC_DIR = ROOT / "static"
@@ -78,6 +79,11 @@ def _update_job(job_id: str, **changes: Any) -> None:
 def _run_translation(job_id: str, source_path: Path, target_path: Path, target_language: str, mode: str, prompt: str) -> None:
     try:
         _update_job(job_id, status="running", message="Preparing your book")
+        if os.getenv("EPUB_TRANSLATOR_PROVIDER", "openai").strip().lower() == "deepl":
+            _update_job(job_id, message="Translating EPUB with DeepL")
+            translate_epub_with_deepl(source_path, target_path, target_language)
+            _update_job(job_id, status="complete", progress=100, message="Your translated EPUB is ready", output_path=str(target_path))
+            return
         translation_llm, fill_llm = _build_llms(job_id)
 
         def on_progress(progress: float) -> None:
